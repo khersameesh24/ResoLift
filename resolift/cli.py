@@ -1,5 +1,8 @@
+import sys
 import argparse
 from resolift.resolift import TiffUpscaler
+from importlib.metadata import version
+
 
 def parse_arguments() -> argparse.Namespace:
     """
@@ -9,7 +12,7 @@ def parse_arguments() -> argparse.Namespace:
         argparse.Namespace: Parsed arguments
     """
     parser = argparse.ArgumentParser(
-        description="ResoLift - Upscale (enhance resolution) large TIFF images with chunk-based processing."
+        description="Upscale (enhance resolution) large TIFF images with chunk-based processing.",
     )
     parser.add_argument(
         "-i", "--input", required=True, help="Path to the input TIFF file."
@@ -31,12 +34,15 @@ def parse_arguments() -> argparse.Namespace:
         default=1024,
         help="Number of rows to process at a time (default: 1024).",
     )
+    parser.add_argument('-v', '--version', action='version', version=version('resolift'))
+
     return parser.parse_args()
 
-def run_upscaler():
+def run_upscaler() -> None:
     """
     Runs the TIFF upscaling process using command-line arguments.
     """
-    args = parse_arguments()
+    args  = parse_arguments()
+    
     upscaler = TiffUpscaler(args.input, args.output, args.scale, args.chunk_size)
     upscaler.upscale()

@@ -30,7 +30,7 @@ class TiffUpscaler:
         self.original_shape = self.image.shape
         print(f"Original shape: {self.original_shape}")
 
-    def _process_and_save(self):
+    def _process_and_save(self) -> None:
         """
         Processes the image in chunks and writes the upscaled data to a new TIFF file
         """
@@ -45,11 +45,13 @@ class TiffUpscaler:
 
                 # Write the upscaled chunk
                 tiff_writer.write(upscaled_chunk, contiguous=True)
-                print(f"Processed rows {start_row} to {end_row}")
+                print(f"Processed rows [{start_row}] to [{end_row}]")
 
         print(f"Upscaled image saved to {self.output_path}")
 
     def upscale(self):
-        """Main method to upscale the TIFF image."""
+        """
+        Main method to upscale the TIFF image.
+        """
         self._load_image()
         self._process_and_save()

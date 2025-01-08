@@ -11,5 +11,4 @@ def upscale_chunk(chunk, scale_factor):
     Returns:
         ndarray: The upscaled chunk.
     """
-     # Cubic interpolation
     return nd.zoom(chunk, scale_factor, order=3)
