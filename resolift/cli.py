@@ -33,8 +33,8 @@ def parse_arguments() -> argparse.Namespace:
         "-p",
         "--sharpen",
         type=float,
-        default=1.0,
-        help="Strength of the sharpening effect (default: 1.0).",
+        default=0.5,
+        help="Strength of the sharpening effect (default: 0.5).",
     )
     return parser.parse_args()
 
