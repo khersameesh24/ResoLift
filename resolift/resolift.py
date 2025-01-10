@@ -1,57 +1,96 @@
 from pathlib import Path
-import tifffile
-from resolift.utils import upscale_chunk
+import tifffile as tiff
+import numpy as np
+from multiprocessing import Pool
+from .utils import upscale_chunk, apply_sharpening
+
 
 class TiffUpscaler:
-    def __init__(self, input_path, output_path, scale_factor, chunk_size) -> None:
+    def __init__(self, input_path, output_path, scale_factor=2.0, chunk_size=1024, sharpen_strength=0.5):
         """
-        Initializes the TiffUpscaler class
+        Initializes the TiffUpscaler.
 
-        Args:
-            input_path (str): Path to the input TIFF file.
-            output_path (str): Path to save the upscaled TIFF file.
-            scale_factor (float): The scaling factor for resolution increase.
-            chunk_size (int): The size of each chunk to process (in rows).
+        ARgs:
+            input_path (path): Path to the input TIFF file.
+            output_path (path): Path to save the upscaled TIFF file.
+            scale_factor (float): Factor by which to upscale the image.
+            chunk_size (int): Number of rows to process in each chunk.
+            sharpen_strength (float): Strength of the sharpening effect (default: 1.0).
         """
         self.input_path: Path = input_path
         self.output_path: Path = output_path
         self.scale_factor: float = scale_factor
         self.chunk_size: int = chunk_size
-        self.original_shape = None
+        self.sharpen_strength: float = sharpen_strength
 
-    def _load_image(self) -> None:
+    def process_chunk(self, args) -> np.ndarray:
         """
-        Loads the TIFF image and retrieves metadata
-        """
-        print("Loading image...")
-        with tifffile.TiffFile(self.input_path) as tif:
-            self.image = tif.asarray()
-            self.metadata = tif.pages[0].tags
-        self.original_shape = self.image.shape
-        print(f"Original shape: {self.original_shape}")
+        Processes a single chunk (used in parallel execution).
 
-    def _process_and_save(self) -> None:
-        """
-        Processes the image in chunks and writes the upscaled data to a new TIFF file
-        """
-        print("Processing and saving upscaled image...")
-        with tifffile.TiffWriter(self.output_path, bigtiff=True) as tiff_writer:
-            for start_row in range(0, self.original_shape[0], self.chunk_size):
-                end_row = min(start_row + self.chunk_size, self.original_shape[0])
-                chunk = self.image[start_row:end_row, :]
+        Args:
+            args (tuple): A tuple containing (chunk, scale_factor).
 
-                # Upscale a chunk
-                upscaled_chunk = upscale_chunk(chunk, self.scale_factor)
-
-                # Write the upscaled chunk
-                tiff_writer.write(upscaled_chunk, contiguous=True)
-                print(f"Processed rows [{start_row}] to [{end_row}]")
-
-        print(f"Upscaled image saved to {self.output_path}")
-
-    def upscale(self):
+        Returns:
+            ndarray: The upscaled chunk.
         """
-        Main method to upscale the TIFF image.
+        chunk, scale_factor = args
+        return upscale_chunk(chunk, scale_factor)
+
+    def upscale(self) -> None:
         """
-        self._load_image()
-        self._process_and_save()
+        Upscales the 3D TIFF image using multicore processing and applies sharpening.
+        """
+        # Open the input TIFF file
+        with tiff.TiffFile(self.input_path) as tif:
+            image: np.ndarray = tif.asarray()
+
+        # Get the shape of the image (Height, Width, Depth)
+        # Convert 2D grayscale to 3D for consistency
+        if len(image.shape) == 2:
+            image: np.ndarray = image[..., np.newaxis]
+
+        height: int
+        width: int
+        depth: int
+
+        height, width, depth = image.shape
+        print(f"Image Shape: {image.shape}")
+        new_height, new_width = int(height * self.scale_factor), int(width * self.scale_factor)
+
+        # Prepare output array with upscaled dimensions
+        upscaled_image: np.ndarray[float] = np.zeros((new_height, new_width, depth), dtype=image.dtype)
+
+        # Split the image into chunks along the rows
+        print("Splitting image into chunks")
+        chunks: list = [
+            (image[start_row:min(start_row + self.chunk_size, height), :, :], self.scale_factor)
+            for start_row in range(0, height, self.chunk_size)
+        ]
+
+        # Process chunks in parallel using a multiprocessing Pool
+        print("Upscaling image chunks")
+        with Pool() as pool:
+            upscaled_chunks: list[np.ndarray] = pool.map(self.process_chunk, chunks)
+
+        # Merge upscaled chunks into the output image
+        print("Merging image chunks")
+        current_row: int = 0
+        for upscaled_chunk in upscaled_chunks:
+            chunk_height = upscaled_chunk.shape[0]
+
+            upscaled_image[current_row:current_row + chunk_height, :, :] = upscaled_chunk
+            current_row += chunk_height
+
+        # Apply sharpening to the entire upscaled image
+        print("Sharpening final image")
+        sharpened_image: np.ndarray[float] = np.zeros_like(upscaled_image)
+        for d in range(depth):
+            sharpened_image[:, :, d] = apply_sharpening(upscaled_image[:, :, d], self.sharpen_strength)
+
+        # Save the sharpened image to a TIFF file
+        print(f"Saving final image at {self.output_path}")
+
+        with tiff.TiffWriter(self.output_path) as writer:
+            writer.write(sharpened_image, photometric="rgb" if depth == 3 else "minisblack")
+
+        return None
