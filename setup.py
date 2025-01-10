@@ -11,6 +11,8 @@ setup(
         "numpy",
         "scipy",
         "tifffile",
+        "imagecodecs",
+        "scikit-image"
     ],
     entry_points={
         "console_scripts": [
