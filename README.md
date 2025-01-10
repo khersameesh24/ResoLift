@@ -44,6 +44,12 @@ $ resolift --input <input.tif> --output <output.tif> --chunk-size 2048
 To increase sharpness strength (default: 0.5)
 
 ```bash
-$ resolift --input <input.tif> --output <output.tif>
---sharpen 1.0
+$ resolift --input <input.tif> --output <output.tif> --sharpen 1.0
+```
+
+To use resolift as a python package
+
+```python
+>>> import resolift as rs
+>>> resolift.TiffUpscaler(input_path, output_path, scale_factor2.0, chunk_size=1024, sharpen_strength=0.5)
 ```
